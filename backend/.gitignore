@@ -1,0 +1,21 @@
+# Environment — NEVER commit
+.env
+
+# Maven build
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Spring Boot devtools
+.spring-boot-devtools.properties

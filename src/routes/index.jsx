@@ -2,8 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import HomePage from '../pages/Home';
-import LoginPage from '../pages/auth/Login';
-import SignupPage from '../pages/auth/Signup';
+import LoginPage from '../pages/Auth/Login';
+import SignupPage from '../pages/Auth/Signup';
 import OnboardingPage from '../pages/Onboarding';
 
 import WorkspaceShell from '../components/memoryos/WorkspaceShell';

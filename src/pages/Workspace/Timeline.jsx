@@ -1,63 +1,36 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Users } from 'lucide-react';
-
-const TIMELINE = [
-  {
-    year: '2026',
-    months: [
-      {
-        month: 'August',
-        memories: [
-          { id: 1, title: 'Kyoto temple garden walk', location: 'Kyoto, Japan', date: 'Aug 7', tags: ['Travel'] },
-        ],
-      },
-      {
-        month: 'July',
-        memories: [
-          { id: 2, title: 'First day at new studio', location: 'Hyderabad', date: 'Jul 1', tags: ['Career'] },
-          { id: 3, title: 'Monsoon evening with Priya', location: 'Banjara Hills', date: 'Jul 14', tags: ['Friends'] },
-        ],
-      },
-      {
-        month: 'May',
-        memories: [
-          { id: 4, title: 'Dad called about the old house', date: 'May 12', tags: ['Family'] },
-        ],
-      },
-    ],
-  },
-  {
-    year: '2025',
-    months: [
-      {
-        month: 'September',
-        memories: [
-          { id: 5, title: 'Ocean road trip — Big Sur', location: 'California', date: 'Sep 4', tags: ['Travel'] },
-        ],
-      },
-      {
-        month: 'December',
-        memories: [
-          { id: 6, title: "New Year's Eve on the rooftop", location: 'Mumbai', date: 'Dec 31', tags: ['Friends', 'Milestone'] },
-        ],
-      },
-    ],
-  },
-  {
-    year: '2024',
-    months: [
-      {
-        month: 'May',
-        memories: [
-          { id: 7, title: 'Graduation day', location: 'Hyderabad', date: 'May 18', tags: ['College', 'Milestone'] },
-        ],
-      },
-    ],
-  },
-];
+import { MapPin } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { memoryosApi } from '../../services/apiClient';
 
 export default function TimelinePage() {
+  const { token } = useAuth();
+  const [timeline, setTimeline] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTimeline() {
+      if (!token) return;
+      setLoading(true);
+      setError('');
+      try {
+        const groups = await memoryosApi.timeline(token);
+        if (!cancelled) setTimeline(toTimeline(groups));
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadTimeline();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   return (
     <div className="px-6 py-8 sm:px-8 lg:px-10">
       <motion.div
@@ -71,7 +44,16 @@ export default function TimelinePage() {
       </motion.div>
 
       <div className="max-w-2xl">
-        {TIMELINE.map((yearGroup, yi) => (
+        {error && (
+          <p className="mb-5 rounded-2xl border border-status-error/30 bg-status-error/8 px-4 py-3 text-sm text-status-error">
+            {error}
+          </p>
+        )}
+        {loading && <p className="text-sm text-text-muted">Loading timeline...</p>}
+        {!loading && !error && timeline.length === 0 && (
+          <p className="text-sm text-text-muted">No dated memories yet.</p>
+        )}
+        {timeline.map((yearGroup, yi) => (
           <motion.div
             key={yearGroup.year}
             initial={{ opacity: 0, y: 16 }}
@@ -138,4 +120,34 @@ export default function TimelinePage() {
       </div>
     </div>
   );
+}
+
+function toTimeline(groups) {
+  const yearMap = new Map();
+  for (const group of groups) {
+    if (!group.year || !group.month) continue;
+    const year = String(group.year);
+    const month = monthName(group.month);
+    if (!yearMap.has(year)) yearMap.set(year, []);
+    yearMap.get(year).push({
+      month,
+      memories: group.memories.map((memory) => ({
+        id: memory.id,
+        title: memory.title,
+        location: memory.locationName,
+        date: formatShortDate(memory.memoryDate),
+        tags: memory.people?.map((person) => person.name) || [],
+      })),
+    });
+  }
+  return Array.from(yearMap.entries()).map(([year, months]) => ({ year, months }));
+}
+
+function monthName(month) {
+  return new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date(2026, month - 1, 1));
+}
+
+function formatShortDate(value) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${value}T00:00:00`));
 }

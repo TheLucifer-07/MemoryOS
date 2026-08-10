@@ -1,45 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import MemoryCard from '../../components/memoryos/MemoryCard';
-
-const SAMPLE_MEMORIES = [
-  {
-    id: 1,
-    title: 'Kyoto temple garden walk',
-    date: 'Jul 18, 2026',
-    location: 'Kyoto, Japan',
-    people: ['Maya'],
-    story: 'We wandered through the moss garden for two hours without saying much. The silence felt like a gift.',
-    tags: ['Travel', 'Japan'],
-  },
-  {
-    id: 2,
-    title: 'Dad called about the old house',
-    date: 'May 12, 2026',
-    location: 'Voice note',
-    story: "He described the smell of the kitchen in the morning. I hadn't thought about that in years.",
-    tags: ['Family'],
-  },
-  {
-    id: 3,
-    title: 'Ocean road trip — Big Sur',
-    date: 'Sep 4, 2025',
-    location: 'Big Sur, California',
-    people: ['Rohan', 'Priya'],
-    story: "Pulled over at every overlook. Didn't need a plan.",
-    tags: ['Travel', 'Friends'],
-  },
-  {
-    id: 4,
-    title: 'Graduation day',
-    date: 'May 2024',
-    location: 'Hyderabad',
-    story: 'Four years compressed into one afternoon. Everyone cried a little.',
-    tags: ['College', 'Milestone'],
-  },
-];
+import { memoryosApi } from '../../services/apiClient';
 
 function greeting() {
   const h = new Date().getHours();
@@ -49,8 +13,32 @@ function greeting() {
 }
 
 export default function WorkspaceHome() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [memories, setMemories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const firstName = user?.name?.split(' ')[0] || 'there';
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMemories() {
+      if (!token) return;
+      setLoading(true);
+      setError('');
+      try {
+        const data = await memoryosApi.memories(token);
+        if (!cancelled) setMemories(data.slice(0, 8).map(toCardMemory));
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadMemories();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <div className="px-6 py-8 sm:px-8 lg:px-10">
@@ -92,8 +80,17 @@ export default function WorkspaceHome() {
         <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-text-muted">
           Recently remembered
         </h2>
+        {error && (
+          <p className="mb-5 rounded-2xl border border-status-error/30 bg-status-error/8 px-4 py-3 text-sm text-status-error">
+            {error}
+          </p>
+        )}
+        {loading && <p className="text-sm text-text-muted">Loading memories...</p>}
+        {!loading && !error && memories.length === 0 && (
+          <p className="text-sm text-text-muted">No memories yet.</p>
+        )}
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {SAMPLE_MEMORIES.map((m, i) => (
+          {memories.map((m, i) => (
             <motion.div
               key={m.id}
               initial={{ opacity: 0, y: 12 }}
@@ -107,4 +104,21 @@ export default function WorkspaceHome() {
       </motion.div>
     </div>
   );
+}
+
+function toCardMemory(memory) {
+  return {
+    id: memory.id,
+    title: memory.title,
+    date: formatDate(memory.memoryDate),
+    location: memory.locationName,
+    people: memory.people?.map((person) => person.name) || [],
+    story: memory.story || memory.description,
+    tags: [],
+  };
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
 }
