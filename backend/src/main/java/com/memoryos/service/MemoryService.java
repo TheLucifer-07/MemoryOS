@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
@@ -100,12 +99,8 @@ public class MemoryService {
     }
 
     private Memory loadOwnedMemory(UUID userId, UUID id) {
-        Memory memory = memoryRepository.findWithPeopleById(id)
+        return memoryRepository.findWithPeopleByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Memory not found"));
-        if (!memory.getUserId().equals(userId)) {
-            throw new ForbiddenException("You do not have access to this memory");
-        }
-        return memory;
     }
 
     private void applyRequest(Memory memory, MemoryRequest request, UUID userId) {
@@ -117,7 +112,8 @@ public class MemoryService {
         memory.setLatitude(request.latitude());
         memory.setLongitude(request.longitude());
         memory.setVisibility(request.visibility() == null ? Visibility.PRIVATE : request.visibility());
-        memory.setPeople(resolvePeople(userId, request.personIds()));
+        memory.getPeople().clear();
+        memory.getPeople().addAll(resolvePeople(userId, request.personIds()));
     }
 
     private Set<Person> resolvePeople(UUID userId, Set<UUID> personIds) {

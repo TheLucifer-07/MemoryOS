@@ -1,5 +1,6 @@
 package com.memoryos.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.memoryos.entity.Visibility;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -13,7 +14,7 @@ import java.util.UUID;
 public record MemoryRequest(
         @NotBlank @Size(max = 255) String title,
         @Size(max = 5000) String description,
-        @Size(max = 30000) String story,
+        @JsonAlias("content") @Size(max = 30000) String story,
         LocalDate memoryDate,
         @Size(max = 255) String locationName,
         @DecimalMin("-90.0") @DecimalMax("90.0") Double latitude,

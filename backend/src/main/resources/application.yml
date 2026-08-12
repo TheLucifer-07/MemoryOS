@@ -42,9 +42,8 @@ server:
 
 memoryos:
   jwt:
-    secret: ${JWT_SECRET}
-    issuer: ${JWT_ISSUER:memoryos}
-    expiration-ms: 86400000
+    issuer: ${JWT_ISSUER:}
+    audience: ${JWT_AUDIENCE:authenticated}
   cors:
     allowed-origins: ${FRONTEND_URL:http://localhost:5173}
   supabase:
@@ -53,6 +52,10 @@ memoryos:
     secret-key: ${SUPABASE_SECRET_KEY:}
   storage:
     bucket: ${STORAGE_BUCKET:memory-media}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+  maps:
+    api-key: ${MAPS_API_KEY:}
 
 management:
   endpoints:

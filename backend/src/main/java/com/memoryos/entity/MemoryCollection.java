@@ -111,6 +111,9 @@ public class MemoryCollection {
     }
 
     public void setMemories(Set<Memory> memories) {
-        this.memories = memories;
+        this.memories.clear();
+        if (memories != null) {
+            this.memories.addAll(memories);
+        }
     }
 }

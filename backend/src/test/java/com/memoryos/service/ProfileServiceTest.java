@@ -14,6 +14,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,15 +27,15 @@ class ProfileServiceTest {
     private ProfileService profileService;
 
     @Test
-    void createsDefaultProfileForAuthenticatedUserWhenMissing() {
+    void returnsUnsavedDefaultProfileForAuthenticatedUserWhenMissing() {
         UUID userId = UUID.randomUUID();
         when(profileRepository.findByUserId(userId)).thenReturn(Optional.empty());
-        when(profileRepository.save(any(Profile.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = profileService.getProfile(userId);
 
         assertThat(response.userId()).isEqualTo(userId);
         assertThat(response.timezone()).isEqualTo("UTC");
+        verify(profileRepository, never()).save(any(Profile.class));
     }
 
     @Test

@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import MemoryCard from '../../components/memoryos/MemoryCard';
+import MemoryDetailModal from '../../components/memoryos/MemoryDetailModal';
+import MemoryEditorModal from '../../components/memoryos/MemoryEditorModal';
 import { memoryosApi } from '../../services/apiClient';
 
 function greeting() {
@@ -17,28 +19,77 @@ export default function WorkspaceHome() {
   const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editorMode, setEditorMode] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+  const [detailMemory, setDetailMemory] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const firstName = user?.name?.split(' ')[0] || 'there';
+
+  const loadMemories = useCallback(async ({ silent = false } = {}) => {
+    if (!token) return;
+    if (!silent) setLoading(true);
+    setError('');
+    try {
+      const data = await memoryosApi.memories(token);
+      setMemories(data.slice(0, 8).map(toCardMemory));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
-    async function loadMemories() {
-      if (!token) return;
-      setLoading(true);
-      setError('');
-      try {
-        const data = await memoryosApi.memories(token);
-        if (!cancelled) setMemories(data.slice(0, 8).map(toCardMemory));
-      } catch (err) {
-        if (!cancelled) setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    async function run() {
+      if (cancelled) return;
+      await loadMemories();
     }
-    loadMemories();
+    run();
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [loadMemories]);
+
+  async function openMemory(id) {
+    setDetailId(id);
+    setDetailMemory(null);
+    setDetailLoading(true);
+    setDetailError('');
+    try {
+      const data = await memoryosApi.memory(token, id);
+      setDetailMemory(data);
+    } catch (err) {
+      setDetailError(err.message || 'Memory could not be opened.');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function handleSaved(saved) {
+    setEditorMode(null);
+    setDetailMemory(saved);
+    setDetailId(saved.id);
+    await loadMemories({ silent: true });
+  }
+
+  async function handleDelete() {
+    if (!detailMemory || !window.confirm('Delete this memory? This cannot be undone.')) return;
+    setDeleting(true);
+    setDetailError('');
+    try {
+      await memoryosApi.deleteMemory(token, detailMemory.id);
+      setDetailId(null);
+      setDetailMemory(null);
+      await loadMemories({ silent: true });
+    } catch (err) {
+      setDetailError(err.message || 'Memory could not be deleted.');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="px-6 py-8 sm:px-8 lg:px-10">
@@ -63,6 +114,7 @@ export default function WorkspaceHome() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.08 }}
         type="button"
+        onClick={() => setEditorMode('create')}
         className="mb-10 flex items-center gap-3 rounded-3xl border border-dashed border-border bg-[#FEFCF8] px-6 py-4 text-sm font-semibold text-text-muted shadow-soft transition-all hover:border-heading/40 hover:text-heading hover:shadow-card w-full sm:w-auto"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-heading text-white">
@@ -97,11 +149,40 @@ export default function WorkspaceHome() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.1 + i * 0.06 }}
             >
-              <MemoryCard memory={m} />
+              <MemoryCard memory={m} onClick={() => openMemory(m.id)} />
             </motion.div>
           ))}
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {editorMode && (
+          <MemoryEditorModal
+            mode={editorMode}
+            memory={editorMode === 'edit' ? detailMemory : null}
+            token={token}
+            onClose={() => setEditorMode(null)}
+            onSaved={handleSaved}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {detailId && !editorMode && (
+          <MemoryDetailModal
+            memory={detailMemory}
+            loading={detailLoading}
+            deleting={deleting}
+            error={detailError}
+            onClose={() => {
+              setDetailId(null);
+              setDetailMemory(null);
+            }}
+            onEdit={() => setEditorMode('edit')}
+            onDelete={handleDelete}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

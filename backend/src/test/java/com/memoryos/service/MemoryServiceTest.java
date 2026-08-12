@@ -3,7 +3,7 @@ package com.memoryos.service;
 import com.memoryos.dto.MemoryRequest;
 import com.memoryos.entity.Memory;
 import com.memoryos.entity.Visibility;
-import com.memoryos.exception.ForbiddenException;
+import com.memoryos.exception.ResourceNotFoundException;
 import com.memoryos.repository.MemoryRepository;
 import com.memoryos.repository.PersonRepository;
 import org.junit.jupiter.api.Test;
@@ -67,18 +67,47 @@ class MemoryServiceTest {
 
     @Test
     void userBCannotAccessUserAMemory() {
-        UUID userA = UUID.randomUUID();
         UUID userB = UUID.randomUUID();
+        UUID memoryId = UUID.randomUUID();
+
+        when(memoryRepository.findWithPeopleByIdAndUserId(memoryId, userB)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> memoryService.getMemory(userB, memoryId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Memory not found");
+    }
+
+    @Test
+    void updatesMemoryWithoutReplacingManagedPeopleCollectionWithImmutableSet() {
+        UUID userId = UUID.randomUUID();
         UUID memoryId = UUID.randomUUID();
         Memory memory = new Memory();
         ReflectionTestUtils.setField(memory, "id", memoryId);
-        memory.setUserId(userA);
-        memory.setTitle("User A memory");
+        memory.setUserId(userId);
+        memory.setTitle("Old title");
 
-        when(memoryRepository.findWithPeopleById(memoryId)).thenReturn(Optional.of(memory));
+        MemoryRequest request = new MemoryRequest(
+                "Updated title",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Visibility.PRIVATE,
+                Set.of()
+        );
 
-        assertThatThrownBy(() -> memoryService.getMemory(userB, memoryId))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("do not have access");
+        when(memoryRepository.findWithPeopleByIdAndUserId(memoryId, userId)).thenReturn(Optional.of(memory));
+        when(memoryRepository.save(any(Memory.class))).thenAnswer(invocation -> {
+            Memory saved = invocation.getArgument(0);
+            saved.getPeople().clear();
+            return saved;
+        });
+
+        var response = memoryService.updateMemory(userId, memoryId, request);
+
+        assertThat(response.title()).isEqualTo("Updated title");
+        assertThat(memory.getPeople()).isEmpty();
     }
 }

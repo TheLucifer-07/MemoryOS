@@ -68,7 +68,8 @@ public class CollectionService {
         collection.setName(request.name().trim());
         collection.setDescription(trimToNull(request.description()));
         collection.setCoverImageUrl(trimToNull(request.coverImageUrl()));
-        collection.setMemories(resolveMemories(userId, request.memoryIds()));
+        collection.getMemories().clear();
+        collection.getMemories().addAll(resolveMemories(userId, request.memoryIds()));
     }
 
     private Set<Memory> resolveMemories(UUID userId, Set<UUID> memoryIds) {

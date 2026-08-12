@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import MemoryDetailModal from '../../components/memoryos/MemoryDetailModal';
+import MemoryEditorModal from '../../components/memoryos/MemoryEditorModal';
 import { memoryosApi } from '../../services/apiClient';
 
 export default function TimelinePage() {
@@ -9,27 +11,67 @@ export default function TimelinePage() {
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [detailId, setDetailId] = useState(null);
+  const [detailMemory, setDetailMemory] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [editorMode, setEditorMode] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadTimeline = useCallback(async ({ silent = false } = {}) => {
+    if (!token) return;
+    if (!silent) setLoading(true);
+    setError('');
+    try {
+      const groups = await memoryosApi.timeline(token);
+      setTimeline(toTimeline(groups));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadTimeline() {
-      if (!token) return;
-      setLoading(true);
-      setError('');
-      try {
-        const groups = await memoryosApi.timeline(token);
-        if (!cancelled) setTimeline(toTimeline(groups));
-      } catch (err) {
-        if (!cancelled) setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
     loadTimeline();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+  }, [loadTimeline]);
+
+  async function openMemory(id) {
+    setDetailId(id);
+    setDetailMemory(null);
+    setDetailLoading(true);
+    setDetailError('');
+    try {
+      setDetailMemory(await memoryosApi.memory(token, id));
+    } catch (err) {
+      setDetailError(err.message || 'Memory could not be opened.');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function handleSaved(saved) {
+    setEditorMode(null);
+    setDetailMemory(saved);
+    setDetailId(saved.id);
+    await loadTimeline({ silent: true });
+  }
+
+  async function handleDelete() {
+    if (!detailMemory || !window.confirm('Delete this memory? This cannot be undone.')) return;
+    setDeleting(true);
+    setDetailError('');
+    try {
+      await memoryosApi.deleteMemory(token, detailMemory.id);
+      setDetailId(null);
+      setDetailMemory(null);
+      await loadTimeline({ silent: true });
+    } catch (err) {
+      setDetailError(err.message || 'Memory could not be deleted.');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="px-6 py-8 sm:px-8 lg:px-10">
@@ -86,6 +128,7 @@ export default function TimelinePage() {
 
                       <button
                         type="button"
+                        onClick={() => openMemory(mem.id)}
                         className="group w-full rounded-2xl border border-border/80 bg-[#FEFCF8] px-4 py-3.5 text-left shadow-soft transition-all hover:-translate-y-0.5 hover:border-border-hover hover:shadow-card"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -118,6 +161,35 @@ export default function TimelinePage() {
           </motion.div>
         ))}
       </div>
+
+      <AnimatePresence>
+        {editorMode && (
+          <MemoryEditorModal
+            mode="edit"
+            memory={detailMemory}
+            token={token}
+            onClose={() => setEditorMode(null)}
+            onSaved={handleSaved}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {detailId && !editorMode && (
+          <MemoryDetailModal
+            memory={detailMemory}
+            loading={detailLoading}
+            deleting={deleting}
+            error={detailError}
+            onClose={() => {
+              setDetailId(null);
+              setDetailMemory(null);
+            }}
+            onEdit={() => setEditorMode('edit')}
+            onDelete={handleDelete}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

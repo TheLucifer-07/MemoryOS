@@ -170,6 +170,9 @@ public class Memory {
     }
 
     public void setPeople(Set<Person> people) {
-        this.people = people;
+        this.people.clear();
+        if (people != null) {
+            this.people.addAll(people);
+        }
     }
 }

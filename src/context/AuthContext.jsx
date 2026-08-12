@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { memoryosApi } from '../services/apiClient';
-import { signInWithPassword, signOut, signUpWithPassword } from '../services/supabaseAuth';
+import { getCurrentSession, onAuthStateChange, signInWithPassword, signOut, signUpWithPassword } from '../services/supabaseAuth';
 
 const AuthContext = createContext(null);
 
@@ -52,6 +52,26 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    let subscription;
+    async function loadSupabaseSession() {
+      try {
+        const currentSession = await getCurrentSession();
+        if (currentSession?.access_token) persistSession(currentSession);
+        subscription = onAuthStateChange((nextSession) => {
+          if (nextSession?.access_token) persistSession(nextSession);
+          else persistSession(null);
+        })?.data?.subscription;
+      } catch {
+        // Keep local app state when Supabase env is not configured during static frontend work.
+      }
+    }
+    loadSupabaseSession();
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [persistSession]);
+
+  useEffect(() => {
     let cancelled = false;
     async function hydrateBackendProfile() {
       if (!session?.accessToken) return;
@@ -101,7 +121,7 @@ export function AuthProvider({ children }) {
       if (!name || !email || !password) throw new Error('Please fill in all fields.');
       if (password.length < 8) throw new Error('Password must be at least 8 characters.');
       const authSession = await signUpWithPassword({ name, email, password });
-      if (!authSession.access_token) {
+      if (!authSession?.access_token) {
         throw new Error('Check your email to confirm your account, then log in.');
       }
       persistSession(authSession);
@@ -127,15 +147,14 @@ export function AuthProvider({ children }) {
   }, [session]);
 
   const logout = useCallback(async () => {
-    const token = session?.accessToken;
     persistSession(null);
     setError(null);
     try {
-      await signOut(token);
+      await signOut();
     } catch {
       // Local logout should succeed even if Supabase is unreachable.
     }
-  }, [persistSession, session?.accessToken]);
+  }, [persistSession]);
 
   return (
     <AuthContext.Provider value={{ user, token: session?.accessToken, loading, error, login, signup, completeOnboarding, logout }}>

@@ -21,7 +21,7 @@ public class ProfileService {
     @Transactional
     public ProfileResponse getProfile(UUID userId) {
         Profile profile = profileRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultProfile(userId));
+                .orElseGet(() -> defaultProfile(userId));
         return ProfileMapper.toResponse(profile);
     }
 
@@ -42,6 +42,12 @@ public class ProfileService {
         Profile profile = new Profile();
         profile.setUserId(userId);
         return profileRepository.save(profile);
+    }
+
+    private Profile defaultProfile(UUID userId) {
+        Profile profile = new Profile();
+        profile.setUserId(userId);
+        return profile;
     }
 
     private String trimToNull(String value) {
